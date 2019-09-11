@@ -1,0 +1,157 @@
+Contact list...
+mViewModel = ViewModelProviders.of(this).get(ContactViewModel.class);
+
+        Observer<List<ContactModel>> listObserver = new Observer<List<ContactModel>>() {
+            @Override
+            public void onChanged(List<ContactModel> contactModels) {
+                contactModel = contactModels;
+                recyclerAdapter = new RecyclerAdapter(getContext(), contactModel, ContactFragment.this);
+                contactList.setAdapter(recyclerAdapter);
+            }
+        };
+
+        mViewModel.getContactList().observe(this, listObserver);
+        /////////////
+        
+        ContactViewModel extends AndroidViewModel implements ConstantField {
+
+    private MutableLiveData<List<ContactModel>> listMutableLiveData;
+
+
+    public ContactViewModel(@NonNull Application application) {
+        super(application);
+    }
+
+    public LiveData<List<ContactModel>> getContactList() {
+        if (listMutableLiveData == null) {
+            listMutableLiveData = new MutableLiveData<>();
+            loadContact();
+        }
+        return listMutableLiveData;
+    }
+
+    private void loadContact() {
+        List<ContactModel> contactModels = new ArrayList<>();
+        String data = loadJSONFromAsset();
+        try {
+            JSONArray jsonArray = new JSONArray(data);
+            for (int i = 0; i < jsonArray.length(); i++) {
+                JSONObject jsonElement = jsonArray.getJSONObject(i);
+                String fname = jsonElement.getString(FIRST_NAME);
+                String lname = jsonElement.getString(LAST_NAME);
+                long mobile_no = jsonElement.getLong(MOBILE_NO);
+                contactModels.add(new ContactModel(fname, lname, mobile_no));
+            }
+            listMutableLiveData.setValue(contactModels);
+
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public String loadJSONFromAsset() {
+        String json = null;
+        try {
+            InputStream is = getApplication().getAssets().open("contact.json");
+            int size = is.available();
+            byte[] buffer = new byte[size];
+            is.read(buffer);
+            is.close();
+            json = new String(buffer, "UTF-8");
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            return null;
+        }
+        return json;
+    }
+}
+=======================================
+public MessageFragementViewModel(@NonNull Application application) {
+        super(application);
+        contactDatabase = new ContactDatabase(getApplication());
+        long sucess = contactDatabase.saveOTPDetails(new ContactModel("shiv", "kumar", "11/09/2019", 9874563214L, true));
+
+        Log.d("dad", String.valueOf(sucess));
+    }
+
+    public MutableLiveData<List<ContactModel>> getDetails() {
+        if (listMutableLiveData == null)
+        { listMutableLiveData = new MutableLiveData<>();
+
+            listMutableLiveData.setValue(contactDatabase.getOTPDetails());
+        }
+        return listMutableLiveData;
+    }
+    
+    ===================
+    
+    package com.example.kpro.database;
+
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+
+import androidx.annotation.Nullable;
+
+import com.example.kpro.Utils.ConstantField;
+import com.example.kpro.model.ContactModel;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+public class ContactDatabase extends SQLiteOpenHelper implements ConstantField {
+    public ContactDatabase(@Nullable Context context) {
+        super(context, DATABASE_NAME, null, DATABASE_VERSION);
+    }
+
+    @Override
+    public void onCreate(SQLiteDatabase sqLiteDatabase) {
+
+        String createtable = "create table " + TABLE_NAME + "(" + ID + " INTEGER PRIMARY KEY AUTOINCREMENT," + FIRST_NAME + " text," + LAST_NAME + " text," + MOBILE_NO + " INTEGER, " + OTP_SENT + " boolean," + DATE_TIME + " DateTime)";
+        sqLiteDatabase.execSQL(createtable);
+    }
+
+    @Override
+    public void onUpgrade(SQLiteDatabase sqLiteDatabase, int i, int i1) {
+
+        String dropTable = "Drop table if exists " + TABLE_NAME;
+        sqLiteDatabase.execSQL(dropTable);
+        onCreate(sqLiteDatabase);
+    }
+
+    public long saveOTPDetails(ContactModel contactModel) {
+        SQLiteDatabase sqLiteDatabase = getWritableDatabase();
+        ContentValues contentValues = new ContentValues();
+        contentValues.put(FIRST_NAME, contactModel.getFname());
+        contentValues.put(LAST_NAME, contactModel.getLname());
+        contentValues.put(MOBILE_NO, contactModel.getMobileno());
+        contentValues.put(OTP_SENT, contactModel.isOtpSent());
+        contentValues.put(DATE_TIME, String.valueOf(new Date()));
+
+        return sqLiteDatabase.insertOrThrow(TABLE_NAME, null, contentValues);
+
+    }
+
+    public List<ContactModel> getOTPDetails() {
+        List<ContactModel> contactModels = new ArrayList<>();
+        SQLiteDatabase sqLiteDatabase = getWritableDatabase();
+        String query = "select * from " + TABLE_NAME + " order by " + DATE_TIME+" DESC";
+        Cursor cursor = sqLiteDatabase.rawQuery(query, null);
+        if (cursor != null && cursor.getCount() > 0) {
+            while (cursor.moveToNext()) {
+
+                String name = cursor.getString(cursor.getColumnIndex(FIRST_NAME));
+                String lastname = cursor.getString(cursor.getColumnIndex(LAST_NAME));
+                long mobile = cursor.getLong(cursor.getColumnIndex(MOBILE_NO));
+                //String otp = cursor.getString(cursor.getColumnIndex(OTP_SENT));
+                String datetime = cursor.getString(cursor.getColumnIndex(DATE_TIME));
+                contactModels.add(new ContactModel(name, lastname, datetime, mobile, true));
+
+            }
+        }
+        return contactModels;
+    }
+}
